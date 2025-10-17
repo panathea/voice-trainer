@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import WaveformPlayer from '@/components/WaveformPlayer';
+import { useState, useEffect, useRef } from 'react';
+import WaveformPlayer, { WaveformPlayerRef } from '@/components/WaveformPlayer';
 import RecordButton from '@/components/RecordButton';
-import { SENTENCES } from '@/lib/constants';
+import PronounSelector from '@/components/PronounSelector';
 import { Recording, AppState } from '@/types/recording';
 import {
   loadState,
@@ -11,104 +11,208 @@ import {
   blobToBase64,
   base64ToBlob,
   togglePin,
-  toggleFavorite,
-  toggleShowOnlyFavorites,
   downloadRecording,
   saveCurrentSentences as saveCurrentSentencesToStorage,
 } from '@/lib/storage';
+import { SENTENCE_TEMPLATES, getSentenceWithPronouns } from '@/lib/sentence-templates';
 
 export default function Home() {
   const [appState, setAppState] = useState<AppState>({
     recordings: [],
-    currentSentences: [],
-    favoriteSentences: [],
+    currentSentences: [], // Now stores template IDs
+    favoriteSentences: [], // Now stores template IDs
     showOnlyFavorites: false,
+    selectedPronounSet: 'original',
   });
   const [currentAudioBlob, setCurrentAudioBlob] = useState<Blob | null>(null);
-  const [autoPlay, setAutoPlay] = useState(false);
+  const [currentRecordingId, setCurrentRecordingId] = useState<string | null>(null);
+  const [playTrigger, setPlayTrigger] = useState(0);
   const [isInitialized, setIsInitialized] = useState(false);
+  const recordButtonRef = useRef<{ startRecording: () => void; stopRecording: () => void } | null>(null);
+  const waveformPlayerRef = useRef<WaveformPlayerRef | null>(null);
 
   // Initialize state from localStorage
   useEffect(() => {
     const savedState = loadState();
     if (savedState) {
-      setAppState(savedState);
-      // If there are current sentences, keep them; otherwise generate new ones
-      if (savedState.currentSentences.length === 0) {
-        const newSentences = getRandomSentences(3, savedState.showOnlyFavorites, savedState.favoriteSentences);
-        const newState = { ...savedState, currentSentences: newSentences };
-        setAppState(newState);
-        saveState(newState);
+      // Ensure selectedPronounSet exists (for backwards compatibility)
+      const migratedState = {
+        ...savedState,
+        selectedPronounSet: savedState.selectedPronounSet || 'original',
+      };
+      
+      // Migrate old sentence strings to template IDs
+      const needsMigration = migratedState.currentSentences.some((s: string) => 
+        !SENTENCE_TEMPLATES.find(t => t.id === s)
+      );
+      
+      if (needsMigration || migratedState.currentSentences.length === 0) {
+        // Generate new sentences
+        const newSentenceIds = getRandomSentenceIds(3, false, []);
+        migratedState.currentSentences = newSentenceIds;
+        migratedState.favoriteSentences = []; // Reset favorites on migration
       }
+      
+      setAppState(migratedState);
+      saveState(migratedState);
+      
       // Load the most recent recording as current audio
-      if (savedState.recordings.length > 0) {
-        const latestRecording = savedState.recordings[0];
+      if (migratedState.recordings.length > 0) {
+        const latestRecording = migratedState.recordings[0];
         const blob = base64ToBlob(latestRecording.audioData);
         setCurrentAudioBlob(blob);
       }
     } else {
       // First time - generate initial sentences
-      const initialSentences = getRandomSentences(3, false, []);
-      const newState = { ...appState, currentSentences: initialSentences };
+      const initialSentenceIds = getRandomSentenceIds(3, false, []);
+      const newState = { 
+        ...appState, 
+        currentSentences: initialSentenceIds, 
+        selectedPronounSet: 'original',
+        favoriteSentences: [],
+        showOnlyFavorites: false,
+      };
       setAppState(newState);
       saveState(newState);
     }
     setIsInitialized(true);
   }, []);
 
-  const getRandomSentences = (count: number, favoritesOnly: boolean, favorites: string[]): string[] => {
-    const pool = favoritesOnly && favorites.length > 0 ? favorites : SENTENCES;
+  // Keyboard shortcut: Hold space to record
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input/textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      // Only trigger on spacebar
+      if (e.code === 'Space' && !e.repeat && recordButtonRef.current) {
+        e.preventDefault();
+        recordButtonRef.current.startRecording();
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in an input/textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+        return;
+      }
+
+      // Only trigger on spacebar
+      if (e.code === 'Space' && recordButtonRef.current) {
+        e.preventDefault();
+        recordButtonRef.current.stopRecording();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  const getRandomSentenceIds = (count: number, favoritesOnly: boolean, favorites: string[]): string[] => {
+    const pool = favoritesOnly && favorites.length > 0 
+      ? SENTENCE_TEMPLATES.filter(t => favorites.includes(t.id))
+      : SENTENCE_TEMPLATES;
+    
     const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, Math.min(count, shuffled.length));
+    return shuffled.slice(0, Math.min(count, shuffled.length)).map(t => t.id);
   };
 
   const replaceSentence = (index: number) => {
     const pool = appState.showOnlyFavorites && appState.favoriteSentences.length > 0 
-      ? appState.favoriteSentences 
-      : SENTENCES;
+      ? SENTENCE_TEMPLATES.filter(t => appState.favoriteSentences.includes(t.id))
+      : SENTENCE_TEMPLATES;
     
     // Get a random sentence that's not currently displayed
-    const availableSentences = pool.filter(s => !appState.currentSentences.includes(s));
+    const availableTemplates = pool.filter(t => !appState.currentSentences.includes(t.id));
     
-    if (availableSentences.length === 0) {
-      // If all sentences are shown, just pick a random one
-      const randomSentence = pool[Math.floor(Math.random() * pool.length)];
-      const newSentences = [...appState.currentSentences];
-      newSentences[index] = randomSentence;
-      const newState = { ...appState, currentSentences: newSentences };
-      setAppState(newState);
-      saveCurrentSentencesToStorage(newSentences, newState);
+    // If no available templates (all are already shown), don't replace
+    if (availableTemplates.length === 0) {
       return;
     }
     
-    const randomSentence = availableSentences[Math.floor(Math.random() * availableSentences.length)];
+    const randomTemplate = availableTemplates[Math.floor(Math.random() * availableTemplates.length)];
     const newSentences = [...appState.currentSentences];
-    newSentences[index] = randomSentence;
+    newSentences[index] = randomTemplate.id;
     const newState = { ...appState, currentSentences: newSentences };
     setAppState(newState);
     saveCurrentSentencesToStorage(newSentences, newState);
   };
 
-  const handleToggleFavorite = (sentence: string) => {
-    const newState = toggleFavorite(sentence, appState);
+  const replaceAllSentences = () => {
+    // Get available sentence pool (either favorites or all)
+    const pool = appState.showOnlyFavorites && appState.favoriteSentences.length > 0
+      ? SENTENCE_TEMPLATES.filter(t => appState.favoriteSentences.includes(t.id))
+      : SENTENCE_TEMPLATES;
+    
+    // Determine how many sentences to show
+    const count = Math.min(3, pool.length);
+    const newSentenceIds = getRandomSentenceIds(count, appState.showOnlyFavorites, appState.favoriteSentences);
+    
+    const newState = { ...appState, currentSentences: newSentenceIds };
     setAppState(newState);
+    saveCurrentSentencesToStorage(newSentenceIds, newState);
+  };
+
+  const handleToggleFavorite = (templateId: string) => {
+    const favorites = appState.favoriteSentences;
+    const newFavorites = favorites.includes(templateId)
+      ? favorites.filter(id => id !== templateId)
+      : [...favorites, templateId];
+    
+    const newState = {
+      ...appState,
+      favoriteSentences: newFavorites,
+    };
+    
+    setAppState(newState);
+    saveState(newState);
   };
 
   const handleToggleShowOnlyFavorites = () => {
-    const newState = toggleShowOnlyFavorites(appState);
+    // Can't enable favorites if there are none
+    if (!appState.showOnlyFavorites && appState.favoriteSentences.length === 0) {
+      return;
+    }
     
-    // Regenerate sentences if switching to favorites mode and current sentences aren't favorites
-    if (newState.showOnlyFavorites && newState.favoriteSentences.length > 0) {
-      const newSentences = getRandomSentences(3, true, newState.favoriteSentences);
-      newState.currentSentences = newSentences;
-    } else if (!newState.showOnlyFavorites) {
+    const newShowOnlyFavorites = !appState.showOnlyFavorites;
+    let newState = { ...appState, showOnlyFavorites: newShowOnlyFavorites };
+    
+    // Regenerate sentences if switching modes
+    if (newShowOnlyFavorites && appState.favoriteSentences.length > 0) {
+      // Show only favorites - limit to available count
+      const count = Math.min(3, appState.favoriteSentences.length);
+      const newSentenceIds = getRandomSentenceIds(count, true, appState.favoriteSentences);
+      newState.currentSentences = newSentenceIds;
+    } else if (!newShowOnlyFavorites) {
       // Switching back to all sentences - regenerate
-      const newSentences = getRandomSentences(3, false, []);
-      newState.currentSentences = newSentences;
+      const newSentenceIds = getRandomSentenceIds(3, false, []);
+      newState.currentSentences = newSentenceIds;
     }
     
     setAppState(newState);
     saveState(newState);
+  };
+
+  const handlePronounSetChange = (pronounSetId: string) => {
+    const newState = { ...appState, selectedPronounSet: pronounSetId };
+    setAppState(newState);
+    saveState(newState);
+  };
+
+  const handleRecordingStart = () => {
+    // Stop playback when recording starts
+    if (waveformPlayerRef.current) {
+      waveformPlayerRef.current.stop();
+    }
   };
 
   const handleRecordingComplete = async (audioBlob: Blob, duration: number) => {
@@ -127,11 +231,10 @@ export default function Home() {
     setAppState(newState);
     saveState(newState);
 
-    // Set as current audio and auto-play
+    // Set as current audio and trigger auto-play
     setCurrentAudioBlob(audioBlob);
-    setAutoPlay(true);
-    // Reset autoPlay after a moment
-    setTimeout(() => setAutoPlay(false), 100);
+    setCurrentRecordingId(newRecording.id);
+    setPlayTrigger(prev => prev + 1);
   };
 
   const handleTogglePin = (recordingId: string) => {
@@ -146,8 +249,8 @@ export default function Home() {
   const handlePlayRecording = (recording: Recording) => {
     const blob = base64ToBlob(recording.audioData);
     setCurrentAudioBlob(blob);
-    setAutoPlay(true);
-    setTimeout(() => setAutoPlay(false), 100);
+    setCurrentRecordingId(recording.id);
+    setPlayTrigger(prev => prev + 1);
   };
 
   const formatTimestamp = (timestamp: number): string => {
@@ -183,105 +286,127 @@ export default function Home() {
         {/* Header */}
         <header className="text-center mb-6">
           <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">
-            Voice Trainer
+            Sweet Nothings
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Practice speaking with confidence
+            Self-driven trans voice training tool
           </p>
         </header>
 
         {/* Main Grid Layout - 2 columns on desktop */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-          {/* Left Column */}
-          <div className="flex flex-col gap-6">
-            {/* Current Playback Section */}
-            <section className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg">
+          {/* Practice Sentences - First on mobile, Top-right on desktop */}
+          <section className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg order-1 sm:order-2">
+              <div className="flex justify-between items-center mb-4 gap-2 flex-wrap">
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                  Practice Sentences
+                </h2>
+                <div className="flex gap-2 items-center">
+                  <button
+                    onClick={replaceAllSentences}
+                    className="p-2 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-lg transition-colors text-gray-600 dark:text-gray-400"
+                    title="Replace all sentences"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={handleToggleShowOnlyFavorites}
+                    className={`
+                      flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors
+                      ${appState.showOnlyFavorites 
+                        ? 'bg-pink-500 text-white' 
+                        : appState.favoriteSentences.length === 0
+                          ? 'bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                          : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-slate-600'
+                      }
+                    `}
+                    disabled={!appState.showOnlyFavorites && appState.favoriteSentences.length === 0}
+                  >
+                    {appState.showOnlyFavorites ? (
+                      <>
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                        </svg>
+                        <span>Favorites</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                        </svg>
+                        <span>Favorites</span>
+                      </>
+                    )}
+                  </button>
+                  <PronounSelector
+                    selectedPronounSet={appState.selectedPronounSet}
+                    onPronounSetChange={handlePronounSetChange}
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                {appState.currentSentences.map((templateId, index) => {
+                  const sentenceText = getSentenceWithPronouns(templateId, appState.selectedPronounSet);
+                  // Skip if sentence text is empty (template not found)
+                  if (!sentenceText) return null;
+                  
+                  return (
+                    <div 
+                      key={index}
+                      className="flex items-start gap-3 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg"
+                    >
+                      <p className="flex-1 text-gray-800 dark:text-gray-200 leading-relaxed">
+                        {sentenceText}
+                      </p>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => handleToggleFavorite(templateId)}
+                          className="p-2 hover:bg-pink-100 dark:hover:bg-pink-900/30 rounded-lg transition-colors"
+                          title={appState.favoriteSentences.includes(templateId) ? 'Remove from favorites' : 'Add to favorites'}
+                        >
+                          {appState.favoriteSentences.includes(templateId) ? (
+                            <svg className="w-5 h-5 text-pink-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                            </svg>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => replaceSentence(index)}
+                          className="p-2 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                          title="Replace sentence"
+                        >
+                          <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+          </section>
+
+          {/* Current Recording - Second on mobile, Top-left on desktop */}
+          <section className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg order-2 sm:order-1">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
                 Current Recording
               </h2>
               <WaveformPlayer 
+                ref={waveformPlayerRef}
                 audioBlob={currentAudioBlob} 
-                autoPlay={autoPlay}
+                playTrigger={playTrigger}
               />
-            </section>
+          </section>
 
-            {/* Recording Button - Desktop */}
-            <section className="hidden sm:flex flex-col flex-1 items-center justify-center py-6">
-              <RecordButton
-                onRecordingComplete={handleRecordingComplete}
-                onRecordingStart={() => {
-                  // Stop any currently playing audio
-                  setAutoPlay(false);
-                }}
-              />
-            </section>
-          </div>
-
-          {/* Right Column */}
-          <div className="flex flex-col gap-6">
-            {/* Sentence Display Area */}
-            <section className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-                  Practice Sentences
-                </h2>
-                <button
-                  onClick={handleToggleShowOnlyFavorites}
-                  className={`
-                    px-3 py-1.5 text-sm rounded-lg transition-colors
-                    ${appState.showOnlyFavorites 
-                      ? 'bg-pink-500 text-white' 
-                      : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-slate-600'
-                    }
-                  `}
-                  disabled={appState.showOnlyFavorites && appState.favoriteSentences.length === 0}
-                >
-                  {appState.showOnlyFavorites ? '★ Favorites' : '☆ Show Favorites'}
-                </button>
-              </div>
-              
-              <div className="space-y-3">
-                {appState.currentSentences.map((sentence, index) => (
-                  <div 
-                    key={index}
-                    className="flex items-start gap-3 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg"
-                  >
-                    <p className="flex-1 text-gray-800 dark:text-gray-200 leading-relaxed">
-                      {sentence}
-                    </p>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => handleToggleFavorite(sentence)}
-                        className="p-2 hover:bg-pink-100 dark:hover:bg-pink-900/30 rounded-lg transition-colors"
-                        title={appState.favoriteSentences.includes(sentence) ? 'Remove from favorites' : 'Add to favorites'}
-                      >
-                        {appState.favoriteSentences.includes(sentence) ? (
-                          <svg className="w-5 h-5 text-pink-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-                          </svg>
-                        ) : (
-                          <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                          </svg>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => replaceSentence(index)}
-                        className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                        title="Replace sentence"
-                      >
-                        <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            {/* Recent Recordings List */}
-            <section className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg">
+          {/* Recent Recordings List - Third on mobile, Bottom-right on desktop */}
+          <section className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg order-3 sm:order-4">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
                 Recent Recordings
               </h2>
@@ -295,7 +420,11 @@ export default function Home() {
                   {visibleRecordings.map((recording) => (
                     <div
                       key={recording.id}
-                      className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-slate-700/50 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                      className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
+                        recording.id === currentRecordingId
+                          ? 'bg-blue-100 dark:bg-blue-900/30 ring-2 ring-blue-500 dark:ring-blue-400'
+                          : 'bg-gray-50 dark:bg-slate-700/50 hover:bg-gray-100 dark:hover:bg-slate-700'
+                      }`}
                     >
                       <button
                         onClick={() => handlePlayRecording(recording)}
@@ -343,8 +472,16 @@ export default function Home() {
                   ))}
                 </div>
               )}
-            </section>
-          </div>
+          </section>
+
+          {/* Recording Button - Desktop only, Bottom-left on desktop */}
+          <section className="hidden sm:flex flex-col items-center justify-center py-6 order-4 sm:order-3">
+            <RecordButton
+              ref={recordButtonRef}
+              onRecordingComplete={handleRecordingComplete}
+              onRecordingStart={handleRecordingStart}
+            />
+          </section>
         </div>
       </div>
       
@@ -352,12 +489,10 @@ export default function Home() {
       <div className="fixed bottom-0 left-0 right-0 sm:hidden bg-gradient-to-t from-pink-50 via-pink-50 to-transparent dark:from-slate-900 dark:via-slate-900 py-6 pb-8">
         <RecordButton
           onRecordingComplete={handleRecordingComplete}
-          onRecordingStart={() => {
-            // Stop any currently playing audio
-            setAutoPlay(false);
-          }}
+          onRecordingStart={handleRecordingStart}
         />
       </div>
     </div>
   );
 }
+

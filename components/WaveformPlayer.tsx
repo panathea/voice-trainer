@@ -1,21 +1,37 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 
 interface WaveformPlayerProps {
   audioBlob: Blob | null;
-  autoPlay?: boolean;
+  playTrigger?: number;
   onFinish?: () => void;
 }
 
-export default function WaveformPlayer({ audioBlob, autoPlay = false, onFinish }: WaveformPlayerProps) {
+export interface WaveformPlayerRef {
+  stop: () => void;
+}
+
+const WaveformPlayer = forwardRef<WaveformPlayerRef, WaveformPlayerProps>(({ audioBlob, playTrigger = 0, onFinish }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const wavesurferRef = useRef<WaveSurfer | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const lastPlayTriggerRef = useRef(0);
 
+  // Expose stop method to parent via ref
+  useImperativeHandle(ref, () => ({
+    stop: () => {
+      if (wavesurferRef.current) {
+        wavesurferRef.current.stop();
+        setIsPlaying(false);
+      }
+    },
+  }));
+
+  // Create/recreate wavesurfer when audioBlob changes
   useEffect(() => {
     if (!containerRef.current || !audioBlob) return;
 
@@ -41,14 +57,6 @@ export default function WaveformPlayer({ audioBlob, autoPlay = false, onFinish }
     // Event listeners
     wavesurfer.on('ready', () => {
       setDuration(wavesurfer.getDuration());
-      if (autoPlay) {
-        // Use setTimeout to ensure the audio is fully ready
-        setTimeout(() => {
-          wavesurfer.play().catch((error) => {
-            console.error('Error playing audio:', error);
-          });
-        }, 50);
-      }
     });
 
     wavesurfer.on('play', () => setIsPlaying(true));
@@ -68,7 +76,20 @@ export default function WaveformPlayer({ audioBlob, autoPlay = false, onFinish }
       wavesurfer.destroy();
       URL.revokeObjectURL(url);
     };
-  }, [audioBlob, autoPlay, onFinish]);
+  }, [audioBlob, onFinish]);
+
+  // Handle play trigger separately
+  useEffect(() => {
+    if (playTrigger && playTrigger !== lastPlayTriggerRef.current && wavesurferRef.current) {
+      lastPlayTriggerRef.current = playTrigger;
+      // Use setTimeout to ensure the audio is fully ready
+      setTimeout(() => {
+        wavesurferRef.current?.play().catch((error) => {
+          console.error('Error playing audio:', error);
+        });
+      }, 50);
+    }
+  }, [playTrigger]);
 
   const togglePlayPause = () => {
     if (wavesurferRef.current) {
@@ -118,5 +139,9 @@ export default function WaveformPlayer({ audioBlob, autoPlay = false, onFinish }
       </div>
     </div>
   );
-}
+});
+
+WaveformPlayer.displayName = 'WaveformPlayer';
+
+export default WaveformPlayer;
 

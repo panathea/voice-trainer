@@ -76,9 +76,9 @@ export function saveRecording(recording: Recording, currentState: AppState): App
   const recordings = currentState.recordings.filter(r => r.id !== recording.id);
   recordings.unshift(recording);
   
-  // Keep only last 20 recordings (or all pinned ones)
+  // Keep only last 3 unpinned recordings (and all pinned ones)
   const pinnedRecordings = recordings.filter(r => r.pinned);
-  const unpinnedRecordings = recordings.filter(r => !r.pinned).slice(0, 20);
+  const unpinnedRecordings = recordings.filter(r => !r.pinned).slice(0, 3);
   
   const newState = {
     ...currentState,

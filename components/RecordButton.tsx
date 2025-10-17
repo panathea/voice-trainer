@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import type RecordRTC from 'recordrtc';
 
 interface RecordButtonProps {
@@ -8,7 +8,12 @@ interface RecordButtonProps {
   onRecordingStart?: () => void;
 }
 
-export default function RecordButton({ onRecordingComplete, onRecordingStart }: RecordButtonProps) {
+export interface RecordButtonRef {
+  startRecording: () => void;
+  stopRecording: () => void;
+}
+
+const RecordButton = forwardRef<RecordButtonRef, RecordButtonProps>(({ onRecordingComplete, onRecordingStart }, ref) => {
   const [isRecording, setIsRecording] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [isReady, setIsReady] = useState(false);
@@ -74,6 +79,12 @@ export default function RecordButton({ onRecordingComplete, onRecordingStart }: 
     };
   }, []);
 
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    startRecording,
+    stopRecording,
+  }));
+
   const startRecording = () => {
     if (!recorderRef.current || !isReady) {
       console.error('Recorder not ready yet');
@@ -86,9 +97,6 @@ export default function RecordButton({ onRecordingComplete, onRecordingStart }: 
       recorderRef.current.reset();
     }
     
-    // Start recording
-    recorderRef.current.startRecording();
-    
     // Set timestamp and show UI immediately
     startTimeRef.current = Date.now();
     setIsRecording(true);
@@ -96,6 +104,12 @@ export default function RecordButton({ onRecordingComplete, onRecordingStart }: 
     if (onRecordingStart) {
       onRecordingStart();
     }
+    setTimeout(() => {
+      if (recorderRef.current) {
+        // Start recording
+        recorderRef.current.startRecording();
+      }
+    }, 150);
   };
 
   const stopRecording = () => {
@@ -187,10 +201,19 @@ export default function RecordButton({ onRecordingComplete, onRecordingStart }: 
           </svg>
         )}
       </button>
-      <p className="text-sm text-gray-600 dark:text-gray-300">
-        {!isReady ? 'Initializing...' : isRecording ? 'Recording...' : 'Hold to record'}
+      <p className="text-sm text-gray-600 dark:text-gray-300 text-center">
+        {!isReady ? 'Initializing...' : isRecording ? 'Recording...' : (
+          <>
+            Hold to record
+            <span className="block text-xs opacity-70 mt-1">or press Space</span>
+          </>
+        )}
       </p>
     </div>
   );
-}
+});
+
+RecordButton.displayName = 'RecordButton';
+
+export default RecordButton;
 

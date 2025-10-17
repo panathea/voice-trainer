@@ -8,8 +8,9 @@ export interface Recording {
 
 export interface AppState {
   recordings: Recording[];
-  currentSentences: string[];
-  favoriteSentences: string[];
+  currentSentences: string[]; // Now stores template IDs
+  favoriteSentences: string[]; // Now stores template IDs
   showOnlyFavorites: boolean;
+  selectedPronounSet: string; // Default: 'original'
 }
 
