@@ -1,0 +1,177 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import PronounSelector from './PronounSelector';
+import SentenceItem from './SentenceItem';
+import { SENTENCE_TEMPLATES, getSentenceWithPronouns } from '@/lib/sentence-templates';
+
+export interface PracticeSentencesState {
+  currentSentences: string[];
+  favoriteSentences: string[];
+  showOnlyFavorites: boolean;
+  selectedPronounSet: string;
+}
+
+interface PracticeSentencesProps {
+  initialState: PracticeSentencesState;
+  onStateChange: (state: PracticeSentencesState) => void;
+}
+
+export default function PracticeSentences({
+  initialState,
+  onStateChange,
+}: PracticeSentencesProps) {
+  const [currentSentences, setCurrentSentences] = useState(initialState.currentSentences);
+  const [favoriteSentences, setFavoriteSentences] = useState(initialState.favoriteSentences);
+  const [showOnlyFavorites, setShowOnlyFavorites] = useState(initialState.showOnlyFavorites);
+  const [selectedPronounSet, setSelectedPronounSet] = useState(initialState.selectedPronounSet);
+
+  // Notify parent of state changes
+  useEffect(() => {
+    onStateChange({
+      currentSentences,
+      favoriteSentences,
+      showOnlyFavorites,
+      selectedPronounSet,
+    });
+  }, [currentSentences, favoriteSentences, showOnlyFavorites, selectedPronounSet, onStateChange]);
+
+  const getRandomSentenceIds = (count: number, favoritesOnly: boolean): string[] => {
+    const pool = favoritesOnly && favoriteSentences.length > 0 
+      ? SENTENCE_TEMPLATES.filter(t => favoriteSentences.includes(t.id))
+      : SENTENCE_TEMPLATES;
+    
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, Math.min(count, shuffled.length)).map(t => t.id);
+  };
+
+  const replaceSentence = (index: number) => {
+    const pool = showOnlyFavorites && favoriteSentences.length > 0 
+      ? SENTENCE_TEMPLATES.filter(t => favoriteSentences.includes(t.id))
+      : SENTENCE_TEMPLATES;
+    
+    // Get a random sentence that's not currently displayed
+    const availableTemplates = pool.filter(t => !currentSentences.includes(t.id));
+    
+    // If no available templates (all are already shown), don't replace
+    if (availableTemplates.length === 0) {
+      return;
+    }
+    
+    const randomTemplate = availableTemplates[Math.floor(Math.random() * availableTemplates.length)];
+    const newSentences = [...currentSentences];
+    newSentences[index] = randomTemplate.id;
+    setCurrentSentences(newSentences);
+  };
+
+  const replaceAllSentences = () => {
+    const count = Math.min(3, showOnlyFavorites ? favoriteSentences.length : SENTENCE_TEMPLATES.length);
+    const newSentenceIds = getRandomSentenceIds(count, showOnlyFavorites);
+    setCurrentSentences(newSentenceIds);
+  };
+
+  const toggleFavorite = (templateId: string) => {
+    const newFavorites = favoriteSentences.includes(templateId)
+      ? favoriteSentences.filter(id => id !== templateId)
+      : [...favoriteSentences, templateId];
+    setFavoriteSentences(newFavorites);
+  };
+
+  const toggleShowOnlyFavorites = () => {
+    // Can't enable favorites if there are none
+    if (!showOnlyFavorites && favoriteSentences.length === 0) {
+      return;
+    }
+    
+    const newShowOnlyFavorites = !showOnlyFavorites;
+    setShowOnlyFavorites(newShowOnlyFavorites);
+    
+    // Regenerate sentences if switching modes
+    if (newShowOnlyFavorites && favoriteSentences.length > 0) {
+      // Show only favorites - limit to available count
+      const count = Math.min(3, favoriteSentences.length);
+      const newSentenceIds = getRandomSentenceIds(count, true);
+      setCurrentSentences(newSentenceIds);
+    } else if (!newShowOnlyFavorites) {
+      // Switching back to all sentences - regenerate
+      const newSentenceIds = getRandomSentenceIds(3, false);
+      setCurrentSentences(newSentenceIds);
+    }
+  };
+
+  const handlePronounSetChange = (pronounSetId: string) => {
+    setSelectedPronounSet(pronounSetId);
+  };
+  return (
+    <section className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-lg order-1 sm:order-2">
+      <div className="flex justify-between items-center mb-4 gap-2 flex-wrap">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+          Practice Sentences
+        </h2>
+        <div className="flex gap-2 items-center">
+          <button
+            onClick={replaceAllSentences}
+            className="p-2 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-lg transition-colors text-gray-600 dark:text-gray-400"
+            title="Replace all sentences"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+          <button
+            onClick={toggleShowOnlyFavorites}
+            className={`
+              flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg transition-colors
+              ${showOnlyFavorites 
+                ? 'bg-pink-500 text-white' 
+                : favoriteSentences.length === 0
+                  ? 'bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                  : 'bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-slate-600'
+              }
+            `}
+            disabled={!showOnlyFavorites && favoriteSentences.length === 0}
+          >
+            {showOnlyFavorites ? (
+              <>
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                </svg>
+                <span>Favorites</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+                <span>Favorites</span>
+              </>
+            )}
+          </button>
+          <PronounSelector
+            selectedPronounSet={selectedPronounSet}
+            onPronounSetChange={handlePronounSetChange}
+          />
+        </div>
+      </div>
+      
+      <div className="space-y-3">
+        {currentSentences.map((templateId, index) => {
+          const sentenceText = getSentenceWithPronouns(templateId, selectedPronounSet);
+          // Skip if sentence text is empty (template not found)
+          if (!sentenceText) return null;
+          
+          return (
+            <SentenceItem
+              key={index}
+              sentenceText={sentenceText}
+              isFavorite={favoriteSentences.includes(templateId)}
+              onToggleFavorite={() => toggleFavorite(templateId)}
+              onReplace={() => replaceSentence(index)}
+            />
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
