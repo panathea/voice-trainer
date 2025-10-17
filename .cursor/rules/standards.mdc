@@ -1,0 +1,7 @@
+---
+alwaysApply: true
+---
+
+- use tailwind for styling
+- prefer grid for page layout
+- project uses nextjs AppRouter

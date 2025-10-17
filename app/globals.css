@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Light mode - Pink and Blue tints */
+  --background: #fef3f9;
+  --foreground: #1e293b;
+  --card-bg: #ffffff;
+  --accent-pink: #ec4899;
+  --accent-blue: #3b82f6;
 }
 
 @theme inline {
@@ -14,8 +18,12 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Dark mode - Dark Blue theme */
+    --background: #0f172a;
+    --foreground: #e2e8f0;
+    --card-bg: #1e293b;
+    --accent-pink: #ec4899;
+    --accent-blue: #60a5fa;
   }
 }
 
@@ -23,4 +31,5 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.3s ease;
 }
