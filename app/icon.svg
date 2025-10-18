@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- White background -->
+  <rect width="100" height="100" fill="#FFFFFF"/>
+  
+  <!-- Trans flag stripes as background -->
+  <rect width="100" height="20" y="0" fill="#5BCEFA"/>
+  <rect width="100" height="20" y="20" fill="#F5A9B8"/>
+  <rect width="100" height="20" y="40" fill="#FFFFFF"/>
+  <rect width="100" height="20" y="60" fill="#F5A9B8"/>
+  <rect width="100" height="20" y="80" fill="#5BCEFA"/>
+  
+  <!-- Dark speaker icon on top -->
+  <path d="M 25 35 L 25 65 L 35 65 L 70 85 L 70 15 L 35 35 Z" fill="#2D3748"/>
+</svg>
+
