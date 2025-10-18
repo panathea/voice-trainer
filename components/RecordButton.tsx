@@ -29,8 +29,8 @@ const RecordButton = forwardRef<RecordButtonRef, RecordButtonProps>(({ onRecordi
     const initRecorder = async () => {
       try {
         // Dynamically import RecordRTC
-        const module = await import('recordrtc');
-        RecordRTCRef.current = module.default;
+        const recordRTCModule = await import('recordrtc');
+        RecordRTCRef.current = recordRTCModule.default;
         
         if (!mounted) return;
         
@@ -45,10 +45,10 @@ const RecordButton = forwardRef<RecordButtonRef, RecordButtonProps>(({ onRecordi
         streamRef.current = stream;
         
         // Create RecordRTC instance once
-        const recorder = new module.default(stream, {
+        const recorder = new recordRTCModule.default(stream, {
           type: 'audio',
           mimeType: 'audio/webm',
-          recorderType: module.default.StereoAudioRecorder,
+          recorderType: recordRTCModule.default.StereoAudioRecorder,
           numberOfAudioChannels: 1,
           desiredSampRate: 16000,
         });
