@@ -142,13 +142,15 @@ export default function Home() {
   // Persist practice sentences state changes
   const handlePracticeStateChange = useCallback((newPracticeState: PracticeSentencesState) => {
     setPracticeState(newPracticeState);
-    const newState = {
-      ...appState,
-      ...newPracticeState,
-    };
-    setAppState(newState);
-    saveState(newState);
-  }, [appState]);
+    setAppState(prevState => {
+      const newState = {
+        ...prevState,
+        ...newPracticeState,
+      };
+      saveState(newState);
+      return newState;
+    });
+  }, []);
 
   const handleRecordingStart = () => {
     // Stop playback when recording starts

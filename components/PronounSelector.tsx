@@ -16,7 +16,7 @@ export default function PronounSelector({ selectedPronounSet, onPronounSetChange
         value={selectedPronounSet}
         onChange={(e) => onPronounSetChange(e.target.value)}
         className="
-          px-3 py-1.5 text-sm
+          px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm
           bg-gray-100 dark:bg-slate-700
           text-gray-700 dark:text-gray-300
           rounded-lg
@@ -26,7 +26,7 @@ export default function PronounSelector({ selectedPronounSet, onPronounSetChange
           transition-colors
           cursor-pointer
           appearance-none
-          pr-8
+          pr-7 sm:pr-8
         "
       >
         {options.map((option) => (
@@ -36,7 +36,7 @@ export default function PronounSelector({ selectedPronounSet, onPronounSetChange
         ))}
       </select>
       <svg
-        className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500 dark:text-gray-400 pointer-events-none"
+        className="absolute right-1.5 sm:right-2 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500 dark:text-gray-400 pointer-events-none"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"

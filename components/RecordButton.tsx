@@ -201,14 +201,18 @@ const RecordButton = forwardRef<RecordButtonRef, RecordButtonProps>(({ onRecordi
           </svg>
         )}
       </button>
-      <p className="text-sm text-gray-600 dark:text-gray-300 text-center">
-        {!isReady ? 'Initializing...' : isRecording ? 'Recording...' : (
+      <div className="text-sm text-gray-600 dark:text-gray-300 text-center min-w-[120px] h-[44px] flex flex-col items-center justify-center">
+        {!isReady ? (
+          <p>Initializing...</p>
+        ) : isRecording ? (
+          <p>Recording...</p>
+        ) : (
           <>
-            Hold to record
-            <span className="block text-xs opacity-70 mt-1">or press Space</span>
+            <p>Hold to record</p>
+            <p className="text-xs opacity-70 mt-1">or press Space</p>
           </>
         )}
-      </p>
+      </div>
     </div>
   );
 });
