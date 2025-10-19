@@ -2,7 +2,7 @@
 // Placeholders: {SUBJECT}, {OBJECT}, {POSSESSIVE}, {REFLEXIVE}, {WAS}, {IS}, {HAS}
 // _CAP variants for capitalized versions
 
-import { applySentencePronouns } from './pronouns';
+import { applySentencePronouns, PRONOUN_SETS } from './pronouns';
 
 export interface SentenceTemplate {
   id: string;
@@ -1003,6 +1003,21 @@ export function getSentenceWithPronouns(
   const template = SENTENCE_TEMPLATES.find(t => t.id === templateId);
   if (!template) return '';
   
+  // Handle random pronoun selection
+  if (pronounSetId === 'random') {
+    // Get all pronoun set IDs except 'random'
+    const availablePronounSets = Object.keys(PRONOUN_SETS).filter(id => id !== 'random');
+    // Randomly select one
+    const randomPronounSetId = availablePronounSets[Math.floor(Math.random() * availablePronounSets.length)];
+    
+    // If random selected 'original', return the original sentence
+    if (randomPronounSetId === 'original') {
+      return template.original;
+    }
+    
+    return applySentencePronouns(template.template, randomPronounSetId);
+  }
+  
   if (pronounSetId === 'original') {
     return template.original;
   }
@@ -1020,11 +1035,26 @@ export function getRandomSentences(
   const shuffled = [...available].sort(() => Math.random() - 0.5);
   const selected = shuffled.slice(0, Math.min(count, shuffled.length));
   
-  return selected.map(template => ({
-    id: template.id,
-    text: pronounSetId === 'original' 
-      ? template.original 
-      : applySentencePronouns(template.template, pronounSetId),
-  }));
+  return selected.map(template => {
+    // Handle random pronoun selection
+    if (pronounSetId === 'random') {
+      const availablePronounSets = Object.keys(PRONOUN_SETS).filter(id => id !== 'random');
+      const randomPronounSetId = availablePronounSets[Math.floor(Math.random() * availablePronounSets.length)];
+      
+      return {
+        id: template.id,
+        text: randomPronounSetId === 'original' 
+          ? template.original 
+          : applySentencePronouns(template.template, randomPronounSetId),
+      };
+    }
+    
+    return {
+      id: template.id,
+      text: pronounSetId === 'original' 
+        ? template.original 
+        : applySentencePronouns(template.template, pronounSetId),
+    };
+  });
 }
 

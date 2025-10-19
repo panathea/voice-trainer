@@ -14,6 +14,18 @@ export interface PronounSet {
 }
 
 export const PRONOUN_SETS: Record<string, PronounSet> = {
+  random: {
+    id: 'random',
+    name: 'Random',
+    forms: {
+      subject: '',
+      object: '',
+      possessive: '',
+      possessivePronoun: '',
+      reflexive: '',
+    },
+    verbConjugation: 'singular',
+  },
   original: {
     id: 'original',
     name: 'Original',

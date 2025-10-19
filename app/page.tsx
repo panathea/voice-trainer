@@ -268,11 +268,13 @@ export default function Home() {
       </div>
       
       {/* Fixed Recording Button for Mobile */}
-      <div className="fixed bottom-0 left-0 right-0 sm:hidden bg-gradient-to-t from-pink-50 via-pink-50 to-transparent dark:from-slate-900 dark:via-slate-900 py-6 pb-8">
-        <RecordButton
-          onRecordingComplete={handleRecordingComplete}
-          onRecordingStart={handleRecordingStart}
-        />
+      <div className="fixed bottom-0 left-0 right-0 sm:hidden bg-gradient-to-t from-pink-50 via-pink-50 to-transparent dark:from-slate-900 dark:via-slate-900 py-6 pb-8 z-50 isolate pointer-events-none">
+        <div className="pointer-events-auto">
+          <RecordButton
+            onRecordingComplete={handleRecordingComplete}
+            onRecordingStart={handleRecordingStart}
+          />
+        </div>
       </div>
     </div>
   );
