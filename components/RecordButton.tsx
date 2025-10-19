@@ -22,33 +22,35 @@ const RecordButton = forwardRef<RecordButtonRef, RecordButtonProps>(({ onRecordi
   const startTimeRef = useRef<number>(0);
   const RecordRTCRef = useRef<typeof RecordRTC | null>(null);
 
-  // Initialize RecordRTC once when component mounts
+  // Initialize RecordRTC once when component mounts and handle tab visibility
   useEffect(() => {
     let mounted = true;
     
     const initRecorder = async () => {
       try {
-        // Dynamically import RecordRTC
-        const recordRTCModule = await import('recordrtc');
-        RecordRTCRef.current = recordRTCModule.default;
+        // Dynamically import RecordRTC if not already loaded
+        if (!RecordRTCRef.current) {
+          const recordRTCModule = await import('recordrtc');
+          RecordRTCRef.current = recordRTCModule.default;
+        }
         
-        if (!mounted) return;
+        if (!mounted || !document.hasFocus()) return;
         
         // Get microphone permission and stream
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         
-        if (!mounted) {
+        if (!mounted || !document.hasFocus()) {
           stream.getTracks().forEach(track => track.stop());
           return;
         }
         
         streamRef.current = stream;
         
-        // Create RecordRTC instance once
-        const recorder = new recordRTCModule.default(stream, {
+        // Create RecordRTC instance
+        const recorder = new RecordRTCRef.current(stream, {
           type: 'audio',
           mimeType: 'audio/webm',
-          recorderType: recordRTCModule.default.StereoAudioRecorder,
+          recorderType: RecordRTCRef.current.StereoAudioRecorder,
           numberOfAudioChannels: 1,
           desiredSampRate: 16000,
         });
@@ -63,19 +65,55 @@ const RecordButton = forwardRef<RecordButtonRef, RecordButtonProps>(({ onRecordi
       }
     };
     
-    initRecorder();
-    
-    // Cleanup on unmount
-    return () => {
-      mounted = false;
+    const cleanupRecorder = () => {
+      // Stop any active recording
       if (recorderRef.current) {
-        recorderRef.current.destroy();
+        try {
+          const state = recorderRef.current.getState();
+          if (state === 'recording' || state === 'paused') {
+            recorderRef.current.stopRecording(() => {
+              // Recording stopped, now cleanup
+            });
+          }
+          recorderRef.current.destroy();
+        } catch (error) {
+          console.error('Error cleaning up recorder:', error);
+        }
         recorderRef.current = null;
       }
+      
+      // Cleanup stream
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
       }
+      
+      setIsRecording(false);
+      setIsReady(false);
+    };
+    
+    // Handle tab visibility changes
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Tab is hidden - cleanup microphone
+        cleanupRecorder();
+      } else {
+        // Tab is visible - reinitialize microphone
+        initRecorder();
+      }
+    };
+    
+    // Initialize on mount
+    initRecorder();
+    
+    // Listen for visibility changes
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Cleanup on unmount
+    return () => {
+      mounted = false;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      cleanupRecorder();
     };
   }, []);
 
