@@ -5,6 +5,7 @@ import WaveformPlayer, { WaveformPlayerRef } from '@/components/WaveformPlayer';
 import RecordButton from '@/components/RecordButton';
 import PracticeSentences, { PracticeSentencesState } from '@/components/PracticeSentences';
 import RecordingsList from '@/components/RecordingsList';
+import HelpModal from '@/components/HelpModal';
 import { Recording, AppState } from '@/types/recording';
 import {
   loadState,
@@ -212,13 +213,18 @@ export default function Home() {
     <div className="min-h-screen p-4 pb-40 sm:pb-8 sm:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <header className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">
-            Sweet Nothings
-          </h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Self-driven trans voice training tool
-          </p>
+        <header className="mb-6 relative">
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">
+              Sweet Nothings
+            </h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Self-driven trans voice training tool
+            </p>
+          </div>
+          <div className="absolute top-0 right-0">
+            <HelpModal />
+          </div>
         </header>
 
         {/* Main Grid Layout - 2 columns on desktop */}
