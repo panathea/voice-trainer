@@ -66,7 +66,7 @@ export default function HelpModal() {
                 </h3>
                 <ul className="list-disc list-inside space-y-2 leading-relaxed">
                   <li>Choose practice sentences you like, including selecting affirming pronouns</li>
-                  <li>Click the record button (or hold spacebar) to record yourself reading them</li>
+                  <li>Hold the record button (or spacebar) to record yourself reading them</li>
                   <li>Your recording will play back to you, giving immediate feedback</li>
                   <li>Pin or download your favorite recordings to keep them for reference</li>
                 </ul>
