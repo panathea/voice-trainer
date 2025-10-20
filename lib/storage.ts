@@ -1,4 +1,4 @@
-import { Recording, AppState } from '@/types/recording';
+import { Recording, AppState, SentenceWithPronoun } from '@/types/recording';
 
 const STORAGE_KEY = 'voice-trainer-state';
 
@@ -114,7 +114,7 @@ export function deleteRecording(recordingId: string, currentState: AppState): Ap
 }
 
 // Save current sentences
-export function saveCurrentSentences(sentences: string[], currentState: AppState): AppState {
+export function saveCurrentSentences(sentences: SentenceWithPronoun[], currentState: AppState): AppState {
   const newState = {
     ...currentState,
     currentSentences: sentences,
