@@ -218,11 +218,16 @@ export default function Home() {
             <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100 mb-2">
               Sweet Nothings
             </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
               Self-driven trans voice training tool
             </p>
+            {/* Mobile: Show help link below description */}
+            <div className="sm:hidden">
+              <HelpModal />
+            </div>
           </div>
-          <div className="absolute top-0 right-0">
+          {/* Desktop: Float help link in top-right corner */}
+          <div className="hidden sm:block absolute top-0 right-0">
             <HelpModal />
           </div>
         </header>
