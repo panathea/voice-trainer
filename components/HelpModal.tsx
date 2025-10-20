@@ -77,7 +77,7 @@ export default function HelpModal() {
                   Where is the vocal analysis?
                 </h3>
                 <p className="leading-relaxed">
-                  Lots of voice training tools try to analyze your voice, using foments, pitch, and resonance measurements. These measures are somewhat useful when learning skills in isolation, but even a voice with &quot;perfect&quot; metrics can sound terrible.
+                  Lots of voice training tools try to analyze your voice, using formants, pitch, and resonance measurements. These measures are somewhat useful when learning skills in isolation, but even a voice with &quot;perfect&quot; metrics can sound terrible.
                 </p>
                 <p className="leading-relaxed">
                   Instead of relying on metrics, listen to your voice and decide whether <i>you</i> like it. The only way to improve is to listen to your own voice and iterate on it.

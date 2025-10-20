@@ -6,7 +6,7 @@ import RecordButton from '@/components/RecordButton';
 import PracticeSentences, { PracticeSentencesState } from '@/components/PracticeSentences';
 import RecordingsList from '@/components/RecordingsList';
 import HelpModal from '@/components/HelpModal';
-import { Recording, AppState } from '@/types/recording';
+import { Recording, AppState, SentenceWithPronoun } from '@/types/recording';
 import {
   loadState,
   saveState,
@@ -16,12 +16,13 @@ import {
   downloadRecording,
 } from '@/lib/storage';
 import { SENTENCE_TEMPLATES } from '@/lib/sentence-templates';
+import { PRONOUN_SETS } from '@/lib/pronouns';
 
 export default function Home() {
   const [appState, setAppState] = useState<AppState>({
     recordings: [],
-    currentSentences: [], // Now stores template IDs
-    favoriteSentences: [], // Now stores template IDs
+    currentSentences: [], // Stores sentences with resolved pronouns
+    favoriteSentences: [], // Stores template IDs
     showOnlyFavorites: false,
     selectedPronounSet: 'original',
   });
@@ -38,10 +39,27 @@ export default function Home() {
   const recordButtonRef = useRef<{ startRecording: () => void; stopRecording: () => void } | null>(null);
   const waveformPlayerRef = useRef<WaveformPlayerRef | null>(null);
 
-  // Helper function to generate random sentence IDs
-  const getRandomSentenceIds = (count: number): string[] => {
+  // Helper function to resolve a pronoun set (handles 'random' selection)
+  const resolvePronounSet = (pronounSetId: string): string => {
+    if (pronounSetId !== 'random') {
+      return pronounSetId;
+    }
+    
+    // Pick a random pronoun set (excluding 'random' itself)
+    const availablePronounSets = Object.keys(PRONOUN_SETS).filter(id => id !== 'random');
+    const randomIndex = Math.floor(Math.random() * availablePronounSets.length);
+    return availablePronounSets[randomIndex];
+  };
+
+  // Helper function to generate random sentences with resolved pronouns
+  const getRandomSentences = (count: number, pronounSetId: string): SentenceWithPronoun[] => {
     const shuffled = [...SENTENCE_TEMPLATES].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, Math.min(count, shuffled.length)).map(t => t.id);
+    const selected = shuffled.slice(0, Math.min(count, shuffled.length));
+    
+    return selected.map(template => ({
+      templateId: template.id,
+      resolvedPronounSetId: resolvePronounSet(pronounSetId),
+    }));
   };
 
   // Initialize state from localStorage
@@ -54,15 +72,16 @@ export default function Home() {
         selectedPronounSet: savedState.selectedPronounSet || 'original',
       };
       
-      // Migrate old sentence strings to template IDs
-      const needsMigration = migratedState.currentSentences.some((s: string) => 
-        !SENTENCE_TEMPLATES.find(t => t.id === s)
-      );
+      // Migrate old data structures
+      const needsMigration = 
+        migratedState.currentSentences.length === 0 ||
+        typeof migratedState.currentSentences[0] === 'string' || // Old format (just IDs)
+        !migratedState.currentSentences[0].hasOwnProperty('resolvedPronounSetId'); // Missing resolved pronoun
       
-      if (needsMigration || migratedState.currentSentences.length === 0) {
-        // Generate new sentences
-        const newSentenceIds = getRandomSentenceIds(3);
-        migratedState.currentSentences = newSentenceIds;
+      if (needsMigration) {
+        // Generate new sentences with resolved pronouns
+        const newSentences = getRandomSentences(3, migratedState.selectedPronounSet);
+        migratedState.currentSentences = newSentences;
         migratedState.favoriteSentences = []; // Reset favorites on migration
       }
       
@@ -83,9 +102,9 @@ export default function Home() {
       }
     } else {
       // First time - generate initial sentences
-      const initialSentenceIds = getRandomSentenceIds(3);
+      const initialSentences = getRandomSentences(3, 'original');
       const initialPracticeState = {
-        currentSentences: initialSentenceIds,
+        currentSentences: initialSentences,
         favoriteSentences: [],
         showOnlyFavorites: false,
         selectedPronounSet: 'original',

@@ -6,10 +6,15 @@ export interface Recording {
   pinned: boolean;
 }
 
+export interface SentenceWithPronoun {
+  templateId: string;
+  resolvedPronounSetId: string; // The actual pronoun set to use (resolved from 'random' if needed)
+}
+
 export interface AppState {
   recordings: Recording[];
-  currentSentences: string[]; // Now stores template IDs
-  favoriteSentences: string[]; // Now stores template IDs
+  currentSentences: SentenceWithPronoun[]; // Stores template IDs with resolved pronouns
+  favoriteSentences: string[]; // Stores template IDs
   showOnlyFavorites: boolean;
   selectedPronounSet: string; // Default: 'original'
 }

@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react';
 import PronounSelector from './PronounSelector';
 import SentenceItem from './SentenceItem';
 import { SENTENCE_TEMPLATES, getSentenceWithPronouns } from '@/lib/sentence-templates';
+import { PRONOUN_SETS } from '@/lib/pronouns';
+import { SentenceWithPronoun } from '@/types/recording';
 
 export interface PracticeSentencesState {
-  currentSentences: string[];
+  currentSentences: SentenceWithPronoun[];
   favoriteSentences: string[];
   showOnlyFavorites: boolean;
   selectedPronounSet: string;
@@ -26,6 +28,26 @@ export default function PracticeSentences({
   const [showOnlyFavorites, setShowOnlyFavorites] = useState(initialState.showOnlyFavorites);
   const [selectedPronounSet, setSelectedPronounSet] = useState(initialState.selectedPronounSet);
 
+  // Helper function to resolve a pronoun set (handles 'random' selection)
+  const resolvePronounSet = (pronounSetId: string): string => {
+    if (pronounSetId !== 'random') {
+      return pronounSetId;
+    }
+    
+    // Pick a random pronoun set (excluding 'random' itself)
+    const availablePronounSets = Object.keys(PRONOUN_SETS).filter(id => id !== 'random');
+    const randomIndex = Math.floor(Math.random() * availablePronounSets.length);
+    return availablePronounSets[randomIndex];
+  };
+
+  // Helper function to create a sentence with resolved pronoun
+  const createSentenceWithPronoun = (templateId: string, pronounSetId: string): SentenceWithPronoun => {
+    return {
+      templateId,
+      resolvedPronounSetId: resolvePronounSet(pronounSetId),
+    };
+  };
+
   // Notify parent of state changes
   useEffect(() => {
     onStateChange({
@@ -36,13 +58,15 @@ export default function PracticeSentences({
     });
   }, [currentSentences, favoriteSentences, showOnlyFavorites, selectedPronounSet, onStateChange]);
 
-  const getRandomSentenceIds = (count: number, favoritesOnly: boolean): string[] => {
+  const getRandomSentences = (count: number, favoritesOnly: boolean): SentenceWithPronoun[] => {
     const pool = favoritesOnly && favoriteSentences.length > 0 
       ? SENTENCE_TEMPLATES.filter(t => favoriteSentences.includes(t.id))
       : SENTENCE_TEMPLATES;
     
     const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, Math.min(count, shuffled.length)).map(t => t.id);
+    const selected = shuffled.slice(0, Math.min(count, shuffled.length));
+    
+    return selected.map(template => createSentenceWithPronoun(template.id, selectedPronounSet));
   };
 
   const replaceSentence = (index: number) => {
@@ -51,7 +75,8 @@ export default function PracticeSentences({
       : SENTENCE_TEMPLATES;
     
     // Get a random sentence that's not currently displayed
-    const availableTemplates = pool.filter(t => !currentSentences.includes(t.id));
+    const currentTemplateIds = currentSentences.map(s => s.templateId);
+    const availableTemplates = pool.filter(t => !currentTemplateIds.includes(t.id));
     
     // If no available templates (all are already shown), don't replace
     if (availableTemplates.length === 0) {
@@ -60,14 +85,14 @@ export default function PracticeSentences({
     
     const randomTemplate = availableTemplates[Math.floor(Math.random() * availableTemplates.length)];
     const newSentences = [...currentSentences];
-    newSentences[index] = randomTemplate.id;
+    newSentences[index] = createSentenceWithPronoun(randomTemplate.id, selectedPronounSet);
     setCurrentSentences(newSentences);
   };
 
   const replaceAllSentences = () => {
     const count = Math.min(3, showOnlyFavorites ? favoriteSentences.length : SENTENCE_TEMPLATES.length);
-    const newSentenceIds = getRandomSentenceIds(count, showOnlyFavorites);
-    setCurrentSentences(newSentenceIds);
+    const newSentences = getRandomSentences(count, showOnlyFavorites);
+    setCurrentSentences(newSentences);
   };
 
   const toggleFavorite = (templateId: string) => {
@@ -90,12 +115,12 @@ export default function PracticeSentences({
     if (newShowOnlyFavorites && favoriteSentences.length > 0) {
       // Show only favorites - limit to available count
       const count = Math.min(3, favoriteSentences.length);
-      const newSentenceIds = getRandomSentenceIds(count, true);
-      setCurrentSentences(newSentenceIds);
+      const newSentences = getRandomSentences(count, true);
+      setCurrentSentences(newSentences);
     } else if (!newShowOnlyFavorites) {
       // Switching back to all sentences - regenerate
-      const newSentenceIds = getRandomSentenceIds(3, false);
-      setCurrentSentences(newSentenceIds);
+      const newSentences = getRandomSentences(3, false);
+      setCurrentSentences(newSentences);
     }
   };
 
@@ -155,8 +180,8 @@ export default function PracticeSentences({
       </div>
       
       <div className="space-y-2 sm:space-y-3">
-        {currentSentences.map((templateId, index) => {
-          const sentenceText = getSentenceWithPronouns(templateId, selectedPronounSet);
+        {currentSentences.map((sentence, index) => {
+          const sentenceText = getSentenceWithPronouns(sentence.templateId, sentence.resolvedPronounSetId);
           // Skip if sentence text is empty (template not found)
           if (!sentenceText) return null;
           
@@ -164,8 +189,8 @@ export default function PracticeSentences({
             <SentenceItem
               key={index}
               sentenceText={sentenceText}
-              isFavorite={favoriteSentences.includes(templateId)}
-              onToggleFavorite={() => toggleFavorite(templateId)}
+              isFavorite={favoriteSentences.includes(sentence.templateId)}
+              onToggleFavorite={() => toggleFavorite(sentence.templateId)}
               onReplace={() => replaceSentence(index)}
             />
           );
