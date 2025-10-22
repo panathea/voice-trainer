@@ -96,7 +96,7 @@ const RecordButton = forwardRef<RecordButtonRef, RecordButtonProps>(({ onRecordi
           mimeType: 'audio/webm',
           recorderType: RecordRTCRef.current.StereoAudioRecorder,
           numberOfAudioChannels: 1,
-          desiredSampRate: 16000,
+          desiredSampRate: 44100,
         });
         
         recorderRef.current = recorder;
@@ -320,7 +320,7 @@ const RecordButton = forwardRef<RecordButtonRef, RecordButtonProps>(({ onRecordi
             mimeType: 'audio/webm',
             recorderType: RecordRTCRef.current.StereoAudioRecorder,
             numberOfAudioChannels: 1,
-            desiredSampRate: 16000,
+            desiredSampRate: 44100,
           });
           
           recorderRef.current = recorder;
