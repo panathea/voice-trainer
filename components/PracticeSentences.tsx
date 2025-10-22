@@ -6,6 +6,7 @@ import SentenceItem from './SentenceItem';
 import { SENTENCE_TEMPLATES, getSentenceWithPronouns } from '@/lib/sentence-templates';
 import { PRONOUN_SETS } from '@/lib/pronouns';
 import { SentenceWithPronoun } from '@/types/recording';
+import { sampleSize } from 'lodash';
 
 export interface PracticeSentencesState {
   currentSentences: SentenceWithPronoun[];
@@ -17,6 +18,23 @@ export interface PracticeSentencesState {
 interface PracticeSentencesProps {
   initialState: PracticeSentencesState;
   onStateChange: (state: PracticeSentencesState) => void;
+}
+
+function shuffle<T>(array: T[]): T[] {
+  let currentIndex = array.length;
+
+  // While there remain elements to shuffle...
+  while (currentIndex != 0) {
+
+    // Pick a remaining element...
+    let randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex--;
+
+    // And swap it with the current element.
+    [array[currentIndex], array[randomIndex]] = [
+      array[randomIndex], array[currentIndex]];
+  }
+  return array;
 }
 
 export default function PracticeSentences({
@@ -63,9 +81,7 @@ export default function PracticeSentences({
       ? SENTENCE_TEMPLATES.filter(t => favoriteSentences.includes(t.id))
       : SENTENCE_TEMPLATES;
     
-    const shuffled = [...pool].sort(() => Math.random() - 0.5);
-    const selected = shuffled.slice(0, Math.min(count, shuffled.length));
-    
+    const selected = sampleSize(pool, count);
     return selected.map(template => createSentenceWithPronoun(template.id, selectedPronounSet));
   };
 
